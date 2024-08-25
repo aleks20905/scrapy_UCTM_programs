@@ -11,7 +11,7 @@ driver = webdriver.Chrome()
 driver.get('https://curriculum.uctm.edu')
 
 # Initialize the SQLite database connection
-conn = sqlite3.connect('schedules.db')
+conn = sqlite3.connect('schedules_selnim.db')
 cursor = conn.cursor()
 
 # Create the tables if they don't exist

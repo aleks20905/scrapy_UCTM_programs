@@ -2,6 +2,8 @@ import requests
 import json
 import re
 import sys
+import sqlite3
+from datetime import datetime
 
 def fetch_js_data(url):
     """Fetch JavaScript file and extract course and spec data."""
@@ -116,15 +118,57 @@ def fetch_schedule_info(course, group, spec, start_date, end_date):
         print(f"Error fetching schedule for course {course}, spec {spec}, group {group}: {e}")
         return None
 
-def save_schedule_data(filename, data):
-    """Save cleaned schedule data to a JSON file."""
-    with open(filename, 'w', encoding='utf-8') as file:
-        json.dump(data, file, ensure_ascii=False, indent=2)
+def create_database():
+    """Create SQLite database and tables."""
+    conn = sqlite3.connect('schedules.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS schedules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        course TEXT,
+        spec TEXT,
+        group_name TEXT,
+        title TEXT,
+        start TEXT,
+        end TEXT,
+        room TEXT,
+        teacher TEXT,
+        type TEXT,
+        group_s TEXT,
+        des TEXT
+    )
+    ''')
+    
+    conn.commit()
+    return conn
 
+def save_schedule_data(conn, data):
+    """Save schedule data to SQLite database."""
+    cursor = conn.cursor()
+    
+    for event in data:
+        cursor.execute('''
+        INSERT INTO schedules (course, spec, group_name, title, start, end, room, teacher, type, group_s, des)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            event['course'],
+            event['spec'],
+            event['group'],
+            event.get('title', ''),
+            event.get('start', ''),
+            event.get('end', ''),
+            event.get('hall', ''),
+            event.get('teacher', ''),
+            event.get('studyType', ''),
+            event.get('group_s', ''),
+            event.get('des', '')
+        ))
+    
+    conn.commit()
+    
 def main():
     js_url = "https://curriculum.uctm.edu/js/opp.js"
-    courses_file = 'courses_data_with_groups.json'
-    output_file = 'schedules_data.json'
 
     print("Fetching JavaScript file and extracting course data...")
     courses = fetch_js_data(js_url)
@@ -137,7 +181,8 @@ def main():
     start_date = "2024-05-20T00:00:00+03:00"
     end_date = "2024-05-25T00:00:00+03:00"
 
-    all_schedules = []
+    # Create SQLite database
+    conn = create_database()
 
     # Iterate through courses and specs to fetch schedule info
     for course in courses:
@@ -150,25 +195,31 @@ def main():
             if current_groups:
                 for group in current_groups:
                     print(f"    Fetching schedule for group {group}...")
-                    schedule_info = fetch_schedule_info(course_number, group, spec_acronym, start_date, end_date)
-                    if schedule_info:
-                        for event in schedule_info:
-                            # Remove unwanted fields
-                            event.pop('id', None)
-                            event.pop('id_rcd', None)
-                            event.pop('studyForm', None)
-                            event.pop('color', None)
-                            # Add extra context
-                            event["course"] = course_number
-                            event["spec"] = spec_acronym
-                            event["group"] = group
-                        all_schedules.extend(schedule_info)
+                    try:
+                        schedule_info = fetch_schedule_info(course_number, group, spec_acronym, start_date, end_date)
+                        if schedule_info:
+                            for event in schedule_info:
+                                # Remove unwanted fields
+                                event.pop('id', None)
+                                event.pop('id_rcd', None)
+                                event.pop('studyForm', None)
+                                event.pop('color', None)
+                                # Add extra context
+                                event["course"] = course_number
+                                event["spec"] = spec_acronym
+                                event["group"] = group
+                            # Save the schedule data to SQLite
+                            save_schedule_data(conn, schedule_info)
+                        else:
+                            print(f"    No schedule info found for group {group}.")
+                    except Exception as e:
+                        print(f"    Error processing group {group}: {str(e)}")
             else:
                 print(f"    No groups found for spec {spec_acronym}.")
 
-    # Save the collected schedule data
-    save_schedule_data(output_file, all_schedules)
-    print(f"Schedule data has been saved to {output_file}.")
+    # Close the database connection
+    conn.close()
+    print("Schedule data has been saved to the SQLite database 'schedules.db'.")
 
 if __name__ == "__main__":
     main()
