@@ -3,7 +3,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
-import time
+from selenium.common.exceptions import StaleElementReferenceException, ElementClickInterceptedException
+
+# Initialize the WebDriver (e.g., Chrome)
+driver = webdriver.Chrome()
+driver.get('https://curriculum.uctm.edu')
 
 def wait_for_ajax(driver):
     wait = WebDriverWait(driver, 10)
@@ -13,8 +17,16 @@ def wait_for_ajax(driver):
     except:
         pass
 
-driver = webdriver.Chrome()
-driver.get('https://curriculum.uctm.edu')
+def close_panel_if_open(driver):
+    try:
+        close_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CLASS_NAME, "jsPanel-btn-close"))
+        )
+        close_button.click()
+        wait_for_ajax(driver)
+    except:
+        # If close button is not found, it might mean the panel is already closed or doesn't exist
+        pass
 
 try:
     with open("all_schedules.txt", "w", encoding="utf-8") as file:
@@ -72,17 +84,60 @@ try:
                                 file.write(f"Group: {group_text} (Value: {group_value})\n")
                                 file.write("Schedule:\n")
 
-                                # Extract schedule data
-                                schedule_items = driver.find_elements(By.CLASS_NAME, "fc-list-table")
-                
-                                # Find all the rows in the table
-                                items = schedule_items.find_elements(By.CSS_SELECTOR, "tr")
-                                
-                                for item in items:
-                                    time = item.find_element(By.CLASS_NAME, "fc-list-item-time").text
-                                    title = item.find_element(By.CLASS_NAME, "fc-list-item-title").text
-                                    print(f"  {time}: {title}\n")
-                                    file.write(f"  {time}: {title}\n")
+                                # Handle StaleElementReferenceException with a retry mechanism
+                                retry_count = 3
+                                while retry_count > 0:
+                                    try:
+                                        schedule_table = WebDriverWait(driver, 10).until(
+                                            EC.presence_of_element_located((By.CLASS_NAME, "fc-list-table"))
+                                        )
+
+                                        items = schedule_table.find_elements(By.CSS_SELECTOR, "tr")
+                                        
+                                        for item in items:
+                                            if "fc-list-item" in item.get_attribute("class"):
+                                                # Ensure previous panel is closed before interacting with a new item
+
+                                                # Click on the item to reveal additional information
+                                                item.click()
+                                                wait_for_ajax(driver)
+                                                
+                                                # Extract additional information
+                                                panel_content = WebDriverWait(driver, 10).until(
+                                                    EC.presence_of_element_located((By.CLASS_NAME, "jsPanel-content"))
+                                                )
+                                                
+                                                # Extract data from the panel
+                                                course_title = panel_content.find_element(By.ID, "te").text
+                                                course_time = panel_content.find_element(By.XPATH, "//div[@class='row'][2]/div[@id='d']").text
+                                                course_type = panel_content.find_element(By.ID, "t").text
+                                                course_hall = panel_content.find_element(By.ID, "ihall").text
+                                                course_teacher = panel_content.find_element(By.ID, "iteacher").text
+                                                
+                                                # file.write(f"  {time}: {title}\n")
+                                                file.write(f"    Title: {course_title}\n")
+                                                file.write(f"    Time: {course_time}\n")
+                                                file.write(f"    Type: {course_type}\n")
+                                                file.write(f"    Hall: {course_hall}\n")
+                                                file.write(f"    Teacher: {course_teacher}\n")
+                                                
+                                                close_panel_if_open(driver)
+                                                
+                                                
+                                            if "fc-list-heading" in item.get_attribute("class"):
+                                                date = item.get_attribute("data-date")
+                                                file.write(f"  Date: {date}\n")
+                                                
+                                        break  # Break the retry loop if successful
+
+                                    except StaleElementReferenceException:
+                                        retry_count -= 1
+                                        print("Stale element reference, retrying...")
+
+                                    except ElementClickInterceptedException:
+                                        print("Element click intercepted, trying to close the panel and retry...")
+                                        close_panel_if_open(driver)
+                                        retry_count -= 1
 
                                 file.write("\n" + "="*40 + "\n\n")
             break
