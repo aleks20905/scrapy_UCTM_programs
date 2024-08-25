@@ -1,9 +1,60 @@
 import requests
 import json
 import re
+import sys
 
-# Function to fetch current groups for a given course and spec
+def fetch_js_data(url):
+    """Fetch JavaScript file and extract course and spec data."""
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Check for HTTP errors
+        js_content = response.text
+
+        # Extract the sp2m variable content
+        pattern = re.compile(r'(?:const|let|var)\s+sp2m\s*=\s*\[(.*?)\]', re.DOTALL)
+        matches = pattern.findall(js_content)
+
+        if not matches:
+            print("Error: sp2m variable not found in JavaScript file.")
+            return None
+
+        sp2m_string = matches[0].replace('\n', '').replace('\r', '')  # Remove newlines
+        sp2m_string = f'[{sp2m_string}]'  # Ensure it's enclosed in brackets
+
+        sp2m_list = json.loads(sp2m_string)
+
+        # Parse course and spec data
+        courses = []
+        for i, entry in enumerate(sp2m_list):
+            course_elements = [item.strip() for item in entry.split(';') if item.strip()]
+            structured_data = []
+            for element in course_elements:
+                if ':' in element:
+                    acronym, name = element.split(':', 1)
+                    acronym = acronym.strip()
+                    name = name.strip()
+                    structured_data.append({
+                        'spec': acronym,
+                        'spec_name': name
+                    })
+
+            course_data = {
+                'course': str(i + 1),
+                'data': structured_data
+            }
+            courses.append(course_data)
+
+        return courses
+
+    except requests.RequestException as e:
+        print(f"Error fetching JavaScript file: {e}")
+        return None
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON: {e}")
+        return None
+
 def fetch_current_groups(course, spec):
+    """Fetch current groups for a given course and spec."""
     url = "https://curriculum.uctm.edu/load_groups_db.php"
     headers = {
         "accept": "*/*",
@@ -25,7 +76,7 @@ def fetch_current_groups(course, spec):
 
     try:
         response = requests.post(url, headers=headers, data=data)
-        response.raise_for_status()  # Raises HTTPError for bad responses
+        response.raise_for_status()  # Check for HTTP errors
         group_data = response.json()
         groups = [group.get('currentGroup') for group in group_data if 'currentGroup' in group]
         return groups
@@ -33,8 +84,8 @@ def fetch_current_groups(course, spec):
         print(f"Error fetching groups for course {course}, spec {spec}: {e}")
         return None
 
-# Function to fetch schedule information for a given course, group, and spec
 def fetch_schedule_info(course, group, spec, start_date, end_date):
+    """Fetch schedule information for a given course, group, and spec."""
     url = "https://curriculum.uctm.edu/load_schedul_info.php"
     headers = {
         "accept": "*/*",
@@ -58,29 +109,29 @@ def fetch_schedule_info(course, group, spec, start_date, end_date):
 
     try:
         response = requests.post(url, headers=headers, data=data)
-        response.raise_for_status()  # Raises HTTPError for bad responses
+        response.raise_for_status()  # Check for HTTP errors
         schedule_data = response.json()
         return schedule_data
     except requests.RequestException as e:
         print(f"Error fetching schedule for course {course}, spec {spec}, group {group}: {e}")
         return None
 
-# Load the JSON data with courses and specifications
-def load_courses(filename):
-    with open(filename, 'r', encoding='utf-8') as file:
-        return json.load(file)
-
-# Save cleaned schedule data to a JSON file
 def save_schedule_data(filename, data):
+    """Save cleaned schedule data to a JSON file."""
     with open(filename, 'w', encoding='utf-8') as file:
         json.dump(data, file, ensure_ascii=False, indent=2)
 
-# Main function to orchestrate the tasks
 def main():
-    # Load course and spec data
+    js_url = "https://curriculum.uctm.edu/js/opp.js"
     courses_file = 'courses_data_with_groups.json'
-    courses = load_courses(courses_file)
-    print(f"Loaded courses data from {courses_file}.")
+    output_file = 'schedules_data.json'
+
+    print("Fetching JavaScript file and extracting course data...")
+    courses = fetch_js_data(js_url)
+    if not courses:
+        print("Failed to fetch or parse course data.")
+        sys.exit(1)
+    print("Course data loaded successfully.")
 
     # Define date range for schedule
     start_date = "2024-05-20T00:00:00+03:00"
@@ -116,7 +167,6 @@ def main():
                 print(f"    No groups found for spec {spec_acronym}.")
 
     # Save the collected schedule data
-    output_file = 'schedules_data.json'
     save_schedule_data(output_file, all_schedules)
     print(f"Schedule data has been saved to {output_file}.")
 
