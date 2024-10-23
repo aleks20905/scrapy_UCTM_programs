@@ -11,10 +11,14 @@ def fetch_js_data(url):
         response = requests.get(url)
         response.raise_for_status()  # Check for HTTP errors
         js_content = response.text
-
+        print("JavaScript file fetched successfully!")
+        
+        # Remove single-line comments (//) and multi-line comments (/* */)
+        js_content_no_comments = re.sub(r'//.*?\n|/\*.*?\*/', '', js_content, flags=re.DOTALL)
+        
         # Extract the sp2m variable content
         pattern = re.compile(r'(?:const|let|var)\s+sp2m\s*=\s*\[(.*?)\]', re.DOTALL)
-        matches = pattern.findall(js_content)
+        matches = pattern.findall(js_content_no_comments)
 
         if not matches:
             print("Error: sp2m variable not found in JavaScript file.")
@@ -178,8 +182,8 @@ def main():
     print("Course data loaded successfully.")
 
     # Define date range for schedule
-    start_date = "2024-05-20T00:00:00+03:00"
-    end_date = "2024-05-25T00:00:00+03:00"
+    start_date = "2024-10-21T00:00:00+03:00" #! if wrong data change to the right time diapasone
+    end_date = "2024-10-26T00:00:00+03:00"  #! if wrong data change to the right time diapasone
 
     # Create SQLite database
     conn = create_database()

@@ -12,9 +12,12 @@ if response.status_code == 200:
     js_content = response.text
     print("JavaScript file fetched successfully!")
 
-    # Find all occurrences of the sp2m variable
+    # Remove single-line comments (//) and multi-line comments (/* */)
+    js_content_no_comments = re.sub(r'//.*?\n|/\*.*?\*/', '', js_content, flags=re.DOTALL)
+
+    # Find all occurrences of the sp2m variable (ignoring comments)
     pattern = re.compile(r'(?:const|let|var)\s+sp2m\s*=\s*\[(.*?)\]', re.DOTALL)
-    matches = pattern.findall(js_content)
+    matches = pattern.findall(js_content_no_comments)
 
     if matches:
         # Extract and clean the sp2m variable

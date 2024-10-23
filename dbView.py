@@ -20,18 +20,13 @@ else:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        # Get the number of rows in the schedules table
-        cursor.execute("SELECT COUNT(*) FROM schedules")
-        row_count = cursor.fetchone()[0]
-        print(f"Total number of rows in schedules table: {row_count}")
-
-        # Fetch and print the first 5 rows
-        cursor.execute("SELECT * FROM schedules LIMIT 50")
-        rows = cursor.fetchall()
+        # Get all distinct room names from the schedules table
+        cursor.execute("SELECT DISTINCT room FROM schedules")
+        rooms = cursor.fetchall()
         
-        print("\nFirst 5 rows of data:")
-        for row in rows:
-            print(row)
+        print("\nDistinct room names:")
+        for room in rooms:
+            print(room[0])
 
         # Close the connection
         conn.close()
