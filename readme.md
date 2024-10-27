@@ -1,6 +1,8 @@
 
 # Web Scraping: Selenium and Raw Fetching
 
+scrapes the semesers program from the official site and return it in .json or liteSQL
+
 ## Selenium Implementation
 
 The current implementation using Selenium is slow and unreliable. The website being scraped uses a lot of jQuery and AJAX calls, which complicates the scraping process. Selenium waits for the entire page and all AJAX requests to finish loading, but sometimes the load never completes properly, causing issues.
