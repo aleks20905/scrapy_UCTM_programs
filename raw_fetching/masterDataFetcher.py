@@ -130,12 +130,12 @@ def create_database():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS schedules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        course TEXT,
+        course INTEGER,
         spec TEXT,
-        group_name TEXT,
+        group_name INTEGER,
         title TEXT,
-        start TEXT,
-        end TEXT,
+        start DATETIME,
+        end DATETIME,
         room TEXT,
         teacher TEXT,
         type TEXT,
@@ -150,18 +150,27 @@ def create_database():
 def save_schedule_data(conn, data):
     """Save schedule data to SQLite database."""
     cursor = conn.cursor()
-    
+
+    # Parse the date strings into datetime objects and ensure course/group are integers
     for event in data:
+        # Convert 'start' and 'end' to datetime objects
+        event_start = datetime.strptime(event.get('start', ''), "%Y-%m-%dT%H:%M:%S%z").strftime("%Y-%m-%d %H:%M:%S")
+        event_end = datetime.strptime(event.get('end', ''), "%Y-%m-%dT%H:%M:%S%z").strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Ensure course and group are integers
+        course = int(event['course'])
+        group = int(event['group'])
+
         cursor.execute('''
         INSERT INTO schedules (course, spec, group_name, title, start, end, room, teacher, type, group_s, des)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            event['course'],
+            course,
             event['spec'],
-            event['group'],
+            group,
             event.get('title', ''),
-            event.get('start', ''),
-            event.get('end', ''),
+            event_start,
+            event_end,
             event.get('hall', ''),
             event.get('teacher', ''),
             event.get('studyType', ''),
@@ -170,7 +179,7 @@ def save_schedule_data(conn, data):
         ))
     
     conn.commit()
-    
+
 def main():
     js_url = "https://curriculum.uctm.edu/js/opp.js"
 
@@ -182,8 +191,8 @@ def main():
     print("Course data loaded successfully.")
 
     # Define date range for schedule
-    start_date = "2024-10-21T00:00:00+03:00" #! if wrong data change to the right time diapasone
-    end_date = "2024-10-26T00:00:00+03:00"  #! if wrong data change to the right time diapasone
+    start_date = "2024-10-21T00:00:00+03:00"
+    end_date = "2024-10-26T00:00:00+03:00"
 
     # Create SQLite database
     conn = create_database()
